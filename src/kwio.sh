@@ -107,3 +107,11 @@ function ask_yN()
     echo "0"
   fi
 }
+
+function ask_input()
+{
+  local message=$@
+
+  read -r -p "$message" response
+  echo "$response"
+}

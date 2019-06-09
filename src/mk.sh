@@ -1,4 +1,5 @@
 . $src_script_path/vm.sh --source-only
+. $src_script_path/kwlib.sh --source-only
 
 function vm_modules_install
 {
@@ -18,19 +19,56 @@ function vm_modules_install
   vm_umount
 }
 
-function vm_kernel_install
+# kw i --name=drm-misc-next
+# This function aims to validate some essential variables and based on that,
+# invoke the correct plugin responsible for installing a new kernel version in
+# the host or the virtual machine
+#
+# @: Check if the parameter has the flag '--host'
+#
+# Note:
+# Take a look at the available kernel plugins at: src/plugins/kernel_install
+function kernel_install
 {
-  vm_mount
-  set +e
-  sudo -E make INSTALL_PATH=${configurations[mount_point]}/boot
-  release=$(make kernelrelease)
-  vm_umount
+  local root_path="/"
+  local host="--host"
+  local distro="none"
+  local boot_path="/boot"
+  local mkinitcpio_path="/etc/mkinitcpio.d/"
+  local kernel_name=${configurations[kernel_name]}
+  local mkinitcpio_name=${configurations[mkinitcpio_name]}
+
+  # We have to guarantee some values
+  kernel_name=${kernel_name:-"nothing"}
+  mkinitcpio_name=${mkinitcpio_name:-"nothing"}
+
+  # Adapt variables for vm
+  if [[ ! "$@" =~ "--host" ]]; then
+   root_path=${configurations[mount_point]}
+   boot_path=$(join_path $root_path $boot_path)
+   mkinitcpio_path=$(join_path $root_path $mkinitcpio_path)
+   kernel_name=${configurations[vm_kernel_name]}
+   mkinitcpio_name=${configurations[vm_mkinitcpio_name]}
+   host=""
+  fi
+
+  distro=$(detect_distro $root_path)
+
+  if [[ $distro =~ "none" ]]; then
+    complain "Unfortunately, there's no support for the target distro"
+    exit 95 # ENOTSUP
+  fi
+
+  # Load the correct plugin
+  . $plugins_path/kernel_install/$distro.sh --source-only
+
+  distro_kernel_install $kernel_name $boot_path $mkinitcpio_name $mkinitcpio_path $host
 }
 
-function vm_new_release_deploy
+function kernel_deploy
 {
-  vm_modules_install
-  vm_kernel_install
+  mod_install $@
+  kernel_install $@
 }
 
 function mk_build
