@@ -20,6 +20,7 @@ following dependencies:
 * Bash
 * git
 * python-docutils
+* tar
 
 If you want to use the default alert system (for commands that may take longer
 to run), you also have to install:

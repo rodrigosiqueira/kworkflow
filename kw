@@ -7,6 +7,7 @@ plugins_path=${plugins_path:-"$HOME/.config/$EASY_KERNEL_WORKFLOW/src/plugins"}
 external_script_path=${external_script_path:-"$HOME/.config/$EASY_KERNEL_WORKFLOW/external"}
 etc_files_path=${etc_files_path:-"$HOME/.config/$EASY_KERNEL_WORKFLOW/etc"}
 config_files_path=${config_files_path:-"$HOME/.config/$EASY_KERNEL_WORKFLOW"}
+kw_dir=${kw_dir:-"$HOME/kw"}
 
 # Export external variables required by kworkflow
 export EASY_KERNEL_WORKFLOW
@@ -71,13 +72,13 @@ function kw()
         return $ret
       )
       ;;
-    mod_install|i)
+    modinstall|i)
       (
         . $src_script_path/mk.sh --source-only
 
         modules_install $@
         local ret=$?
-        alert_completion "kw mod_install" "$1"
+        alert_completion "kw modinstall" "$1"
         return $ret
       )
       ;;
@@ -85,7 +86,7 @@ function kw()
       (
         . $src_script_path/mk.sh --source-only
 
-        kernel_deploy $@
+        #kernel_deploy $@
         local ret=$?
         alert_completion "kw deploy" "$1"
         return $ret

@@ -9,6 +9,7 @@ declare -r SRCDIR="src"
 declare -r DEPLOY_DIR="deploy_rules"
 declare -r CONFIG_DIR="etc"
 declare -r INSTALLTO="$HOME/.config/$APPLICATIONNAME"
+declare -r KW_DIR="$HOME/$APPLICATIONNAME"
 
 declare -r EXTERNAL_SCRIPTS="external"
 declare -r SOUNDS="sounds"
@@ -113,6 +114,9 @@ function synchronize_files()
   if command -v fish &> /dev/null; then
       synchronize_fish
   fi
+
+  # Create ~/kw for support some of the operations
+  mkdir -p $KW_DIR
 
   say $SEPARATOR
   say "$APPLICATIONNAME installed into $INSTALLTO"
