@@ -71,13 +71,13 @@ function kw()
         return $ret
       )
       ;;
-    install|i)
+    mod_install|i)
       (
         . $src_script_path/mk.sh --source-only
 
-        mk_install
+        modules_install $@
         local ret=$?
-        alert_completion "kw install" "$1"
+        alert_completion "kw mod_install" "$1"
         return $ret
       )
       ;;
@@ -95,7 +95,7 @@ function kw()
       (
         . $src_script_path/mk.sh --source-only
 
-        mk_build && mk_install
+        mk_build && modules_install $@
         local ret=$?
         alert_completion "kw bi" "$1"
         return $ret

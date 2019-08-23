@@ -156,7 +156,7 @@ function install_home()
   # First clean old installation
   clean_legacy
   # Download external scripts
-  get_external_scripts
+  #get_external_scripts
   # Synchronize of vimfiles
   synchronize_files
 }

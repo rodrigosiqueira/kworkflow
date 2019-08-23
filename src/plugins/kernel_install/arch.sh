@@ -13,7 +13,7 @@ function distro_kernel_install()
     exit 125 # ECANCELED
   fi
 
-  # Validate name
+  # Validate kernel name
   if [[ -z $name || $name =~ "nothing" ]]; then
     name=$(ask_input "There's no kernel name specified. Type a name: ")
 
@@ -24,7 +24,7 @@ function distro_kernel_install()
     say "New Kernel name: $name"
   fi
 
-  # Validate path
+  # Validate boot path
   if [[ ! -d $boot_path ]]; then
     if [[ $(ask_yN "Boot path does not exists. Use /boot?") =~ "0" ]]; then
       boot_path="/boot"
@@ -33,7 +33,7 @@ function distro_kernel_install()
     fi
   fi
 
-  # Validate mkinitcpio_path
+  # Validate path to mkinitcpio
   if [[ ! -d $mkinitcpio_path ]]; then
     complain "You need to specify a valid mkinitcpio path"
     exit 22 # EINVAL

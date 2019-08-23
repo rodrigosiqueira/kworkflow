@@ -19,6 +19,25 @@ function vm_modules_install
   vm_umount
 }
 
+# This function expects a parameter that could be '--host' or anything else; in
+# the first case, the host machine is the target, and otherwise the virtual
+# machine.
+#
+# @target Target machine
+function modules_install
+{
+  local target=$1
+
+  case "$target" in
+    --host)
+      echo "sudo -E make modules_install"
+      ;;
+    *)
+      echo "vm_modules_install"
+      ;;
+  esac
+}
+
 # kw i --name=drm-misc-next
 # This function aims to validate some essential variables and based on that,
 # invoke the correct plugin responsible for installing a new kernel version in
@@ -67,7 +86,7 @@ function kernel_install
 
 function kernel_deploy
 {
-  mod_install $@
+  modules_install $@
   kernel_install $@
 }
 
@@ -85,24 +104,6 @@ function mk_build
 
   say "make -j$PARALLEL_CORES $MAKE_OPTS"
   make -j$PARALLEL_CORES $MAKE_OPTS
-}
-
-function mk_install
-{
-  # FIXME: validate arch and action
-  if [ $TARGET == "arm" ] ; then
-    export ARCH=arm CROSS_COMPILE="ccache arm-linux-gnu-"
-  fi
-
-  case "$TARGET" in
-    qemu)
-      vm_modules_install
-      ;;
-    host)
-      sudo -E make modules_install
-      sudo -E make install
-      ;;
-  esac
 }
 
 # FIXME: Here is a legacy code, however it could be really nice if we fix it
