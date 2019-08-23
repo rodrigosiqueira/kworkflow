@@ -1,5 +1,47 @@
 # NOTE: src/commons.sh must be included before this file
 
+# This function is responsible for executing a command in a remote machine.
+#
+# @command Command to be executed inside the remote machine
+# @user User in the host machine
+# @ip Ip of the host machine
+function cmd_remotely()
+{
+  local command=$1
+  local user=$2
+  local remote=$3
+  local composed_cmd=""
+
+  if [[ -z "$command" ]]; then
+    warning "No command specified"
+    exit 0
+  fi
+
+  user=${user:-"root"}
+  remote=${remote:-"localhost"}
+
+  composed_cmd="ssh $user@$remote \"$command\""
+  cmd_manager $composed_cmd
+}
+
+# @user User in the host machine
+# @ip Ip of the host machine
+# @path_remote Target path inside remote
+function cp_host2remote()
+{
+  local user=$1
+  local remote=$2
+  local path_host=$3
+  local path_remote=$4
+
+  user=${user:-"root"}
+  remote=${remote:-"localhost"}
+  path_host=${path_host:-"$kw_dir/to_deploy/*"}
+  path_remote=${path_remote:-"/root/kw_deploy"}
+
+  scp $path_host $user@$remote:$path_remote
+}
+
 # This function executes any command and provides a mechanism to display the
 # command in the terminal. Additionally, there's a test mode which only
 # displays the commands, and it is useful for implementing unit tests.

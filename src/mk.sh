@@ -1,5 +1,24 @@
+# TODO: IMPROVE IT
+# It is required to be a root in order to install new modules and kernel
+# version in a target machine, with this idea in mind and for simplicity sake,
+# we rely on "/root" directory. Base on that, this preparation step in the
+# remote machine hardcoded the "/root" directory.
+
 . $src_script_path/vm.sh --source-only
 . $src_script_path/kwlib.sh --source-only
+. $src_script_path/remote.sh --source-only
+
+function modules_install_to()
+{
+  local install_to=$1
+
+  if ! is_kernel_root "$PWD"; then
+    complain "Execute this command in a kernel tree."
+    exit 125 # ECANCELED
+  fi
+
+  make INSTALL_MOD_PATH=$install_to modules_install
+}
 
 function vm_modules_install
 {
@@ -12,6 +31,8 @@ function vm_modules_install
     return 125 # ECANCELED
   fi
 
+  # XXX: This code is a duplication from modules_install_to()
+  # Just delete replace the below code by the function modules_install_to().
   set +e
   make INSTALL_MOD_PATH=${configurations[mount_point]} modules_install
   release=$(make kernelrelease)
@@ -28,12 +49,27 @@ function modules_install
 {
   local target=$1
 
-  case "$target" in
-    --host)
+  if ! is_kernel_root "$PWD"; then
+    complain "Execute this command in a kernel tree."
+    exit 125 # ECANCELED
+  fi
+
+  release=$(make kernelrelease)
+
+  ret=$(parser_command $@)
+  case "$?" in
+    1) # VM_TARGET
+      echo "vm_modules_install"
+      ;;
+    2) # LOCAL_TARGET
       echo "sudo -E make modules_install"
       ;;
-    *)
-      echo "vm_modules_install"
+    3) # REMOTE_TARGET
+      prepare_deploy_dir
+      prepare_remote_dir $ret
+      modules_install_to $kw_dir/remote/
+      generate_tarball "" $release
+      cp_host2remote "root" $ret "$kw_dir/to_deploy/$release.tar" $KW_DEPLOY_REMOTE
       ;;
   esac
 }
@@ -143,4 +179,30 @@ function mk_export_kbuild
   say "export KBUILD_OUTPUT=$BUILD_DIR/$TARGET"
   export KBUILD_OUTPUT=$BUILD_DIR/$TARGET
   mkdir -p $KBUILD_OUTPUT
+}
+
+function parser_command()
+{
+  case $1 in
+    --vm)
+      return $VM_TARGET
+      ;;
+    --local)
+      return $LOCAL_TARGET
+      ;;
+    --remote)
+      shift # Skip '--remote' option
+      # TODO: Segundo retorno com o ip pode ser -> echo "$1"
+      echo $@
+      return $REMOTE_TARGET
+      # TODO
+      # - IF [IP] next to --remote
+      # - ELSEIF [IP in config file]
+      # - ELSE [error]
+      ;;
+    *)
+      # By default we use VM
+      return $TARGET
+      ;;
+  esac
 }
