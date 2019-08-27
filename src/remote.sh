@@ -5,9 +5,12 @@ KW_DEPLOY_REMOTE="/root/kw_deploy"
 
 KW_DEPLOY_CMD="mkdir -p $KW_DEPLOY_REMOTE"
 
+DISTRO_DEPLOY="$KW_DEPLOY_REMOTE/distro_deploy.sh"
+DEPLOY_SCRIPT="$plugins_path/kernel_install/deploy.sh"
+
 # This function prepares the directory ~/kw/ for receiving files to be sent for
 # a remote machine.
-function prepare_deploy_dir()
+function prepare_host_deploy_dir()
 {
   # We should expect the setup.sh script create the directory $HOME/kw.
   # However, does not hurt check for it and create in any case
@@ -25,7 +28,7 @@ function prepare_deploy_dir()
 }
 
 # This function creates a "/root/kw_deploy" directory inside the remote
-# machine.
+# machine and prepare it for deploy.
 #
 # @ip IP address of the target machine
 function prepare_remote_dir()
@@ -33,6 +36,18 @@ function prepare_remote_dir()
   local ip=$1
 
   cmd_remotely "$KW_DEPLOY_CMD" "root" "$ip"
+
+  distro_info=$(cmd_remotely "cat /etc/*-release" "root" "$ret")
+  distro=$(detect_distro "/" "$distro_info")
+
+  if [[ $distro =~ "none" ]]; then
+    complain "Unfortunately, there's no support for the target distro"
+    exit 95 # ENOTSUP
+  fi
+
+  # Send the correct deploy script
+  cp_host2remote "root" $ret "$plugins_path/kernel_install/$distro.sh" $DISTRO_DEPLOY
+  cp_host2remote "root" $ret "$DEPLOY_SCRIPT" $KW_DEPLOY_REMOTE/
 }
 
 # This function generates a tarball file to be sent to the target machine.

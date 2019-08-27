@@ -21,25 +21,26 @@ function cmd_remotely()
   remote=${remote:-"localhost"}
 
   composed_cmd="ssh $user@$remote \"$command\""
-  cmd_manager $composed_cmd
+  cmd_manager HIGHLIGHT_CMD $composed_cmd
 }
 
 # @user User in the host machine
 # @ip Ip of the host machine
-# @path_remote Target path inside remote
+# @src Origin of the file to be send
+# @dst Destination for sending the file
 function cp_host2remote()
 {
   local user=$1
   local remote=$2
-  local path_host=$3
-  local path_remote=$4
+  local src=$3
+  local dst=$4
 
   user=${user:-"root"}
   remote=${remote:-"localhost"}
-  path_host=${path_host:-"$kw_dir/to_deploy/*"}
-  path_remote=${path_remote:-"/root/kw_deploy"}
+  src=${src:-"$kw_dir/to_deploy/*"}
+  dst=${dst:-"/root/kw_deploy"}
 
-  scp $path_host $user@$remote:$path_remote
+  rsync -La $src $user@$remote:$dst
 }
 
 # This function executes any command and provides a mechanism to display the
@@ -47,8 +48,8 @@ function cp_host2remote()
 # displays the commands, and it is useful for implementing unit tests.
 #
 # @flag: Expecting a flag, that could be SILENT, COMPLAIN, WARNING, SUCCESS,
-#   and TEST_MODE. By default, cmd_manager does not expects flags and always
-#   show the command.
+#        TEST_MODE, and HIGHLIGHT_CMD. By default, cmd_manager does not expects
+#        flags and always show the command.
 # @@: Target command
 #
 # Returns:
@@ -73,6 +74,12 @@ function cmd_manager()
     SUCCESS)
       shift 1
       success "$@"
+      ;;
+    HIGHLIGHT_CMD)
+      shift 1
+      warning $CMD_SEPARATOR
+      warning "$@"
+      warning $CMD_SEPARATOR
       ;;
     TEST_MODE)
       shift 1
@@ -220,16 +227,21 @@ function join_path()
 # for plugins; because of this, we limited here the supported distributions
 #
 # @root_path Expects the root path wherein we can find the /etc
+# @str_check A string with the output of "cat /etc/*-release" to be parsed by
+#            this function
 #
 # Returns:
 # It returns the distro name in lowercase, otherwise return none.
 function detect_distro()
 {
   local root_path=$1
+  local str_check=$2
   local etc_path=$(join_path $root_path /etc)
   local distro="none"
 
-  if [[ -d $etc_path ]]; then
+  if [[ ! -z "$str_check" ]]; then
+    distro=$str_check
+  elif [[ -d $etc_path ]]; then
     distro=$(cat $etc_path/*-release | grep -w ID | cut -d = -f 2)
   fi
 

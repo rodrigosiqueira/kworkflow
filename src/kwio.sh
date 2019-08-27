@@ -5,6 +5,7 @@ declare -r REDCOLOR="\033[1;31;49m%s\033[m"
 declare -r YELLOWCOLOR="\033[1;33;49m%s\033[m"
 declare -r GREENCOLOR="\033[1;32;49m%s\033[m"
 declare -r SEPARATOR="========================================================="
+declare -r CMD_SEPARATOR=$(printf '=%.0s' {1..100})
 
 # Alerts command completion to the user.
 #

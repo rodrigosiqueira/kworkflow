@@ -86,7 +86,7 @@ function kw()
       (
         . $src_script_path/mk.sh --source-only
 
-        #kernel_deploy $@
+        kernel_deploy $@
         local ret=$?
         alert_completion "kw deploy" "$1"
         return $ret

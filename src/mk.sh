@@ -17,7 +17,10 @@ function modules_install_to()
     exit 125 # ECANCELED
   fi
 
+  say "make INSTALL_MOD_PATH=$install_to modules_install"
   make INSTALL_MOD_PATH=$install_to modules_install
+  release=$(make kernelrelease)
+  say $release
 }
 
 function vm_modules_install
@@ -65,11 +68,15 @@ function modules_install
       echo "sudo -E make modules_install"
       ;;
     3) # REMOTE_TARGET
-      prepare_deploy_dir
+      prepare_host_deploy_dir
       prepare_remote_dir $ret
       modules_install_to $kw_dir/remote/
       generate_tarball "" $release
+
       cp_host2remote "root" $ret "$kw_dir/to_deploy/$release.tar" $KW_DEPLOY_REMOTE
+
+      # Execute script
+      cmd_remotely "bash $KW_DEPLOY_REMOTE/deploy.sh --modules $release.tar" "root" "$ret"
       ;;
   esac
 }
@@ -93,35 +100,49 @@ function kernel_install
   local kernel_name=${configurations[kernel_name]}
   local mkinitcpio_name=${configurations[mkinitcpio_name]}
 
+  if ! is_kernel_root "$PWD"; then
+    complain "Execute this command in a kernel tree."
+    exit 125 # ECANCELED
+  fi
+
   # We have to guarantee some values
   kernel_name=${kernel_name:-"nothing"}
   mkinitcpio_name=${mkinitcpio_name:-"nothing"}
 
-  # Adapt variables for vm
-  if [[ ! "$@" =~ "--host" ]]; then
-   root_path=${configurations[mount_point]}
-   boot_path=$(join_path $root_path $boot_path)
-   mkinitcpio_path=$(join_path $root_path $mkinitcpio_path)
-   kernel_name=${configurations[vm_kernel_name]}
-   mkinitcpio_name=${configurations[vm_mkinitcpio_name]}
-   host=""
-  fi
+  ret=$(parser_command $@)
+  case "$?" in
+    1) # VM_TARGET
+      echo "VM"
+      # Adapt variables for vm
+     # root_path=${configurations[mount_point]}
+     # boot_path=$(join_path $root_path $boot_path)
+     # mkinitcpio_path=$(join_path $root_path $mkinitcpio_path)
+     # kernel_name=${configurations[vm_kernel_name]}
+     # mkinitcpio_name=${configurations[vm_mkinitcpio_name]}
+     # host=""
+    ;;
+    2) # LOCAL_TARGET
+      echo "TODO"
+    ;;
+    3) # REMOTE_TARGET
+      # TODO: mkinitcipo
+      cp_host2remote "root" $ret "$etc_files_path/kw.preset" $KW_DEPLOY_REMOTE
+      # TODO: Copia a imagem
+      cp_host2remote "root" $ret "arch/x86_64/boot/bzImage" $KW_DEPLOY_REMOTE/vmlinuz-kw
+      # TODO: Copiar o script
 
-  distro=$(detect_distro $root_path)
-
-  if [[ $distro =~ "none" ]]; then
-    complain "Unfortunately, there's no support for the target distro"
-    exit 95 # ENOTSUP
-  fi
-
-  # Load the correct plugin
-  . $plugins_path/kernel_install/$distro.sh --source-only
-
-  distro_kernel_install $kernel_name $boot_path $mkinitcpio_name $mkinitcpio_path $host
+      # Execute script
+      cmd_remotely "bash $KW_DEPLOY_REMOTE/deploy.sh --kernel_update" "root" "$ret"
+    ;;
+  esac
 }
 
 function kernel_deploy
 {
+  # Note: If we deploy a new kernel image that does not match with the modules,
+  # we can break the boot. For security reason, every time we want to deploy a
+  # new kernel version we also update all modules; maybe one day we can change
+  # it, but for now this looks the safe option.
   modules_install $@
   kernel_install $@
 }
