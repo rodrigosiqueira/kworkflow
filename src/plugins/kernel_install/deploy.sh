@@ -10,10 +10,12 @@ cd $HOME/kw_deploy
 
 case $1 in
   --modules)
+    shift # Get rid of --modules
     install_modules $@
     ;;
   --kernel_update)
-    install_kernel
+    shift # Get rid of --kernel_update
+    install_kernel $@
     ;;
   *)
     echo "Unknown operation"

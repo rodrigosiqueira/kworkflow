@@ -9,7 +9,7 @@ function install_modules()
   local module_target=$1
   local ret
 
-  if [[ ! -z "$module_target" ]]; then
+  if [[ -z "$module_target" ]]; then
     module_target=*.tar
   fi
 
@@ -24,19 +24,22 @@ function install_modules()
 # Install kernel
 function install_kernel()
 {
-  # Copy kernel image
-  if [[ -f /boot/vmlinuz-kw ]]; then
-    cp /boot/vmlinuz-kw /boot/vmlinuz-kw.old
+  local name=$1
+
+  if [[ -z "$name" ]]; then
+    name="kw"
   fi
 
-  cp -v vmlinuz-kw /boot/vmlinuz-kw
+  # Copy kernel image
+  if [[ -f "/boot/vmlinuz-$name" ]]; then
+    cp /boot/vmlinuz-$name /boot/vmlinuz-$name.old
+  fi
+
+  cp -v vmlinuz-$name /boot/vmlinuz-$name
   # Update mkinitcpio
-  cp -v kw.preset /etc/mkinitcpio.d/
-  mkinitcpio -p kw
+  cp -v $name.preset /etc/mkinitcpio.d/
+  mkinitcpio -p $name
 
   # Update grub
   grub-mkconfig -o /boot/grub/grub.cfg
-
-  # Reboot
-  echo "REBOOTTT"
 }

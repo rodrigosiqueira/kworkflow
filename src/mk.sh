@@ -57,8 +57,6 @@ function modules_install
     exit 125 # ECANCELED
   fi
 
-  release=$(make kernelrelease)
-
   ret=$(parser_command $@)
   case "$?" in
     1) # VM_TARGET
@@ -99,6 +97,8 @@ function kernel_install
   local mkinitcpio_path="/etc/mkinitcpio.d/"
   local kernel_name=${configurations[kernel_name]}
   local mkinitcpio_name=${configurations[mkinitcpio_name]}
+  local reboot=$1
+  local name=$2
 
   if ! is_kernel_root "$PWD"; then
     complain "Execute this command in a kernel tree."
@@ -109,6 +109,7 @@ function kernel_install
   kernel_name=${kernel_name:-"nothing"}
   mkinitcpio_name=${mkinitcpio_name:-"nothing"}
 
+  shift 2 # We have to get rid of reboot and name variable
   ret=$(parser_command $@)
   case "$?" in
     1) # VM_TARGET
@@ -125,26 +126,40 @@ function kernel_install
       echo "TODO"
     ;;
     3) # REMOTE_TARGET
-      # TODO: mkinitcipo
-      cp_host2remote "root" $ret "$etc_files_path/kw.preset" $KW_DEPLOY_REMOTE
-      # TODO: Copia a imagem
-      cp_host2remote "root" $ret "arch/x86_64/boot/bzImage" $KW_DEPLOY_REMOTE/vmlinuz-kw
-      # TODO: Copiar o script
+      if [[ ! -f "$kw_dir/to_deploy/$name.preset" ]]; then
+        template_mkinit="$etc_files_path/template_mkinitcpio.preset"
+        cp $template_mkinit $kw_dir/to_deploy/$name.preset
+        sed -i "s/NAME/$name/g" $kw_dir/to_deploy/$name.preset
+      fi
 
-      # Execute script
-      cmd_remotely "bash $KW_DEPLOY_REMOTE/deploy.sh --kernel_update" "root" "$ret"
+      cp_host2remote "root" $ret "$kw_dir/to_deploy/$name.preset" $KW_DEPLOY_REMOTE
+      cp_host2remote "root" $ret "arch/x86_64/boot/bzImage" $KW_DEPLOY_REMOTE/vmlinuz-$name
+      cmd_remotely "bash $KW_DEPLOY_REMOTE/deploy.sh --kernel_update $name" "root" "$ret"
+
+      # TODO: Talvez seja melhor deixar o reboot no script especifico
+      [[ "$reboot" = "1" ]] && cmd_remotely "reboot" "root" "$ret"
     ;;
   esac
 }
 
 function kernel_deploy
 {
-  # Note: If we deploy a new kernel image that does not match with the modules,
+  local reboot=0
+  local name=${name:-"kw"}
+
+  for arg do
+    shift
+    [[ "$arg" =~ ^(--reboot|-r) ]] && reboot=1 && continue
+    [[ "$arg" =~ ^(--name|-n)= ]] && name=$(echo $arg | cut -d = -f2) && continue
+    set -- "$@" "$arg"
+  done
+
+  # NOTE: If we deploy a new kernel image that does not match with the modules,
   # we can break the boot. For security reason, every time we want to deploy a
   # new kernel version we also update all modules; maybe one day we can change
   # it, but for now this looks the safe option.
   modules_install $@
-  kernel_install $@
+  kernel_install $reboot $name $@
 }
 
 function mk_build
