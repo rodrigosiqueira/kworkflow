@@ -20,7 +20,7 @@ function cmd_remotely()
   user=${user:-"root"}
   remote=${remote:-"localhost"}
 
-  composed_cmd="ssh $user@$remote \"$command\""
+  composed_cmd="ssh -p 2222 $user@$remote \"$command\""
   cmd_manager HIGHLIGHT_CMD $composed_cmd
 }
 
@@ -40,7 +40,8 @@ function cp_host2remote()
   src=${src:-"$kw_dir/to_deploy/*"}
   dst=${dst:-"/root/kw_deploy"}
 
-  rsync -La $src $user@$remote:$dst
+  # TODO: EH MUITO FEIO A MANIPULACAO DE PORTA NO RSYNC, MAS TEM QUE SER FEITA
+  cmd_manager "rsync -e 'ssh -p 2222' -La $src $user@$remote:$dst --port=2222"
 }
 
 # This function executes any command and provides a mechanism to display the

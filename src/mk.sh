@@ -1,13 +1,31 @@
-# TODO: IMPROVE IT
-# It is required to be a root in order to install new modules and kernel
-# version in a target machine, with this idea in mind and for simplicity sake,
-# we rely on "/root" directory. Base on that, this preparation step in the
-# remote machine hardcoded the "/root" directory.
+#
+# The `mk.sh` file centralizes functions related to kernel operation workflows
+# such as compile, installation, and others. With kworkflow, we want to handle
+# three scenarios:
+# 
+# 1. Virtual Machine (VM): we want to provide support for developers that uses
+#    VM during their work with Linux Kernel, because of this kw provide
+#    essential features for this case.
+# 2. Local: we provide support for users to utilize their machine as a target,
+# 3. Remote: we provide support for handling kernel in a remote machine. It is
+#    important to highlight that a VM in the localhost can be treated as a
+#    remote machine.
+# 
+# Usually, install modules and update the kernel image requires root
+# permission, with this idea in mind we rely on the `/root`  in the remote
+# machine.  Additionally, for local deploy, you will be asked to enter your
+# root password.
+#
 
-. $src_script_path/vm.sh --source-only
+. $src_script_path/vm.sh --source-only # It includes commons.sh
 . $src_script_path/kwlib.sh --source-only
 . $src_script_path/remote.sh --source-only
 
+# This function is responsible for handling the command to make
+# install_modules, and it expects a target path for saving the modules files.
+#
+# @install_to Target path to install the output of the command `make
+#             modules_install`.
 function modules_install_to()
 {
   local install_to=$1
@@ -17,8 +35,8 @@ function modules_install_to()
     exit 125 # ECANCELED
   fi
 
-  say "make INSTALL_MOD_PATH=$install_to modules_install"
-  make INSTALL_MOD_PATH=$install_to modules_install
+  set +e
+  cmd_manager "make INSTALL_MOD_PATH=$install_to modules_install"
   release=$(make kernelrelease)
   say $release
 }
@@ -34,12 +52,8 @@ function vm_modules_install
     return 125 # ECANCELED
   fi
 
-  # XXX: This code is a duplication from modules_install_to()
-  # Just delete replace the below code by the function modules_install_to().
-  set +e
-  make INSTALL_MOD_PATH=${configurations[mount_point]} modules_install
-  release=$(make kernelrelease)
-  say $release
+  modules_install_to "${configurations[mount_point]}"
+
   vm_umount
 }
 
@@ -60,7 +74,7 @@ function modules_install
   ret=$(parser_command $@)
   case "$?" in
     1) # VM_TARGET
-      echo "vm_modules_install"
+      vm_modules_install
       ;;
     2) # LOCAL_TARGET
       echo "sudo -E make modules_install"
@@ -79,12 +93,13 @@ function modules_install
   esac
 }
 
-# kw i --name=drm-misc-next
-# This function aims to validate some essential variables and based on that,
-# invoke the correct plugin responsible for installing a new kernel version in
-# the host or the virtual machine
+# This function behaves like a kernel installation manager. It handles some
+# parameters, and it also prepares to deploy the new kernel in the target
+# machine.
 #
-# @: Check if the parameter has the flag '--host'
+# @reboot If this value is equal 1, it means reboot machine after kernel
+#         installation.
+# @name Kernel name to be deployed.
 #
 # Note:
 # Take a look at the available kernel plugins at: src/plugins/kernel_install
@@ -142,6 +157,18 @@ function kernel_install
   esac
 }
 
+# From kw perspective, deploy a new kernel is composed of two steps: install
+# modules and update kernel image. I chose this approach for reducing the
+# chances of break the system due to modules and kernel mismatch. This function
+# is responsible for handling some of the userspace options and calls the
+# required functions to update the kernel.
+#
+# Note: I know that developer know what they are doing (usually) and in the
+# future, it will be nice if we support single kernel update (patches are
+# welcome).
+#
+# @reboot If 1 the target machine will be rebooted after the kernel update
+# @name Kernel name for the deploy
 function kernel_deploy
 {
   local reboot=0
@@ -154,6 +181,7 @@ function kernel_deploy
     set -- "$@" "$arg"
   done
 
+  ret=$(parser_command $@)
   # NOTE: If we deploy a new kernel image that does not match with the modules,
   # we can break the boot. For security reason, every time we want to deploy a
   # new kernel version we also update all modules; maybe one day we can change
@@ -217,6 +245,17 @@ function mk_export_kbuild
   mkdir -p $KBUILD_OUTPUT
 }
 
+# This function handles a different set of parameters for the distinct set of
+# target machines. We basically support the following parameters: VM, local,
+# and remote deploy; if we get an unsupported option, we abort the operation
+# with EINVAL code.
+#
+# @1 String to be parsed
+#
+# Returns:
+# This function has two returns, and we make the second return by using
+# capturing the "echo" output. The standard return ("$?") can be VM_TARGET (1),
+# LOCAL_TARGET (2), and REMOTE_TARGET (3).
 function parser_command()
 {
   case $1 in
@@ -228,17 +267,18 @@ function parser_command()
       ;;
     --remote)
       shift # Skip '--remote' option
-      # TODO: Segundo retorno com o ip pode ser -> echo "$1"
-      echo $@
+      ip=$@
+
+      if [[ -z "$ip" ]]; then
+        ip=${configurations[ssh_ip]}
+      fi
+
+      echo $ip
       return $REMOTE_TARGET
-      # TODO
-      # - IF [IP] next to --remote
-      # - ELSEIF [IP in config file]
-      # - ELSE [error]
       ;;
     *)
       # By default we use VM
-      return $TARGET
+      exit 22 # EINVAL
       ;;
   esac
 }
