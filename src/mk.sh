@@ -37,8 +37,6 @@ function modules_install_to()
 
   set +e
   cmd_manager "make INSTALL_MOD_PATH=$install_to modules_install"
-  release=$(make kernelrelease)
-  say $release
 }
 
 function vm_modules_install
@@ -64,7 +62,7 @@ function vm_modules_install
 # @target Target machine
 function modules_install
 {
-  local target=$1
+  local ret
 
   if ! is_kernel_root "$PWD"; then
     complain "Execute this command in a kernel tree."
@@ -81,14 +79,19 @@ function modules_install
       ;;
     3) # REMOTE_TARGET
       prepare_host_deploy_dir
-      prepare_remote_dir $ret
+      # TODO: Note que estamos supondo que sempre vamos receber algo no formato: IP:PORTA
+      ip=$(get_from_colon $ret 1)
+      port=$(get_from_colon $ret 2)
+      prepare_remote_dir $ip $port
       modules_install_to $kw_dir/remote/
+      release=$(make kernelrelease)
+      say $release
       generate_tarball "" $release
 
-      cp_host2remote "root" $ret "$kw_dir/to_deploy/$release.tar" $KW_DEPLOY_REMOTE
+      cp_host2remote "$kw_dir/to_deploy/$release.tar" $KW_DEPLOY_REMOTE $ip $port
 
       # Execute script
-      cmd_remotely "bash $KW_DEPLOY_REMOTE/deploy.sh --modules $release.tar" "root" "$ret"
+      cmd_remotely "bash $KW_DEPLOY_REMOTE/deploy.sh --modules $release.tar" $ip $port
       ;;
   esac
 }
@@ -147,12 +150,14 @@ function kernel_install
         sed -i "s/NAME/$name/g" $kw_dir/to_deploy/$name.preset
       fi
 
-      cp_host2remote "root" $ret "$kw_dir/to_deploy/$name.preset" $KW_DEPLOY_REMOTE
-      cp_host2remote "root" $ret "arch/x86_64/boot/bzImage" $KW_DEPLOY_REMOTE/vmlinuz-$name
-      cmd_remotely "bash $KW_DEPLOY_REMOTE/deploy.sh --kernel_update $name" "root" "$ret"
+      ip=$(get_from_colon $ret 1)
+      port=$(get_from_colon $ret 2)
 
-      # TODO: Talvez seja melhor deixar o reboot no script especifico
-      [[ "$reboot" = "1" ]] && cmd_remotely "reboot" "root" "$ret"
+      cp_host2remote "$kw_dir/to_deploy/$name.preset" $KW_DEPLOY_REMOTE $ip $port
+      cp_host2remote "arch/x86_64/boot/bzImage" $KW_DEPLOY_REMOTE/vmlinuz-$name $ip $port
+
+      # Deploy
+      cmd_remotely "bash $KW_DEPLOY_REMOTE/deploy.sh --kernel_update $name $reboot" $ip $port
     ;;
   esac
 }
@@ -181,7 +186,6 @@ function kernel_deploy
     set -- "$@" "$arg"
   done
 
-  ret=$(parser_command $@)
   # NOTE: If we deploy a new kernel image that does not match with the modules,
   # we can break the boot. For security reason, every time we want to deploy a
   # new kernel version we also update all modules; maybe one day we can change
@@ -266,11 +270,23 @@ function parser_command()
       return $LOCAL_TARGET
       ;;
     --remote)
+      # TODO: ATUALIZAR EM ALGUM LUGAR A FORMA DE USAR O REMOTE.
+      # A SINTAXE BASICA DEVE SEGUIR: IP:[PORTA]
       shift # Skip '--remote' option
       ip=$@
 
       if [[ -z "$ip" ]]; then
         ip=${configurations[ssh_ip]}
+        port=${configurations[ssh_port]}
+        ip="$ip:$port"
+      else
+        temp_ip=$(get_from_colon $ip 1)
+        port=$(get_from_colon $ip 2)
+        if [[ "$port" != "$temp_ip" ]]; then
+          ip="$temp_ip:$port"
+        else
+          ip="$temp_ip:22"
+        fi
       fi
 
       echo $ip

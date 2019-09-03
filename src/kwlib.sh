@@ -1,5 +1,13 @@
 # NOTE: src/commons.sh must be included before this file
 
+function get_from_colon()
+{
+  local string=$1
+  local position=$2
+
+  echo "$string" | cut -d : -f$position
+}
+
 # This function is responsible for executing a command in a remote machine.
 #
 # @command Command to be executed inside the remote machine
@@ -8,8 +16,9 @@
 function cmd_remotely()
 {
   local command=$1
-  local user=$2
-  local remote=$3
+  local remote=$2
+  local port=$3
+  local user=$4
   local composed_cmd=""
 
   if [[ -z "$command" ]]; then
@@ -17,10 +26,12 @@ function cmd_remotely()
     exit 0
   fi
 
-  user=${user:-"root"}
+  # Set default values if not specified
   remote=${remote:-"localhost"}
+  port=${port:-"22"}
+  user=${user:-"root"}
 
-  composed_cmd="ssh -p 2222 $user@$remote \"$command\""
+  composed_cmd="ssh -p $port $user@$remote \"$command\""
   cmd_manager HIGHLIGHT_CMD $composed_cmd
 }
 
@@ -30,18 +41,21 @@ function cmd_remotely()
 # @dst Destination for sending the file
 function cp_host2remote()
 {
-  local user=$1
-  local remote=$2
-  local src=$3
-  local dst=$4
+  local src=$1
+  local dst=$2
+  local remote=$3
+  local port=$4
+  local user=$5
 
-  user=${user:-"root"}
   remote=${remote:-"localhost"}
+  port=${port:-"22"}
+  user=${user:-"root"}
+
   src=${src:-"$kw_dir/to_deploy/*"}
   dst=${dst:-"/root/kw_deploy"}
 
   # TODO: EH MUITO FEIO A MANIPULACAO DE PORTA NO RSYNC, MAS TEM QUE SER FEITA
-  cmd_manager "rsync -e 'ssh -p 2222' -La $src $user@$remote:$dst --port=2222"
+  cmd_manager "rsync -e 'ssh -p $port' -La $src $user@$remote:$dst"
 }
 
 # This function executes any command and provides a mechanism to display the

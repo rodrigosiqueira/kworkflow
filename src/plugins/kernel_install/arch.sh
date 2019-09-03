@@ -25,6 +25,7 @@ function install_modules()
 function install_kernel()
 {
   local name=$1
+  local reboot=$2
 
   if [[ -z "$name" ]]; then
     name="kw"
@@ -42,4 +43,9 @@ function install_kernel()
 
   # Update grub
   grub-mkconfig -o /boot/grub/grub.cfg
+
+  # Reboot
+  if [[ "$reboot" = "1" ]]; then
+    reboot
+  fi
 }

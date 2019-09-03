@@ -34,10 +34,11 @@ function prepare_host_deploy_dir()
 function prepare_remote_dir()
 {
   local ip=$1
+  local port=$2
 
-  cmd_remotely "$KW_DEPLOY_CMD" "root" "$ip"
+  cmd_remotely "$KW_DEPLOY_CMD" "$ip" "$port"
 
-  distro_info=$(cmd_remotely "cat /etc/*-release" "root" "$ret")
+  distro_info=$(cmd_remotely "cat /etc/*-release" "$ip" "$port")
   distro=$(detect_distro "/" "$distro_info")
 
   if [[ $distro =~ "none" ]]; then
@@ -45,9 +46,9 @@ function prepare_remote_dir()
     exit 95 # ENOTSUP
   fi
 
-  # Send the correct deploy script
-  cp_host2remote "root" $ret "$plugins_path/kernel_install/$distro.sh" $DISTRO_DEPLOY
-  cp_host2remote "root" $ret "$DEPLOY_SCRIPT" $KW_DEPLOY_REMOTE/
+  # Send the specific deploy script as a root
+  cp_host2remote "$plugins_path/kernel_install/$distro.sh" $DISTRO_DEPLOY $ip $port
+  cp_host2remote "$DEPLOY_SCRIPT" $KW_DEPLOY_REMOTE/ $ip $port
 }
 
 # This function generates a tarball file to be sent to the target machine.
