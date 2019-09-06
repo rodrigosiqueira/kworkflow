@@ -8,6 +8,55 @@ KW_DEPLOY_CMD="mkdir -p $KW_DEPLOY_REMOTE"
 DISTRO_DEPLOY="$KW_DEPLOY_REMOTE/distro_deploy.sh"
 DEPLOY_SCRIPT="$plugins_path/kernel_install/deploy.sh"
 
+# This function is responsible for executing a command in a remote machine.
+#
+# @command Command to be executed inside the remote machine
+# @user User in the host machine
+# @ip Ip of the host machine
+function cmd_remotely()
+{
+  local command=$1
+  local remote=$2
+  local port=$3
+  local user=$4
+  local composed_cmd=""
+
+  if [[ -z "$command" ]]; then
+    warning "No command specified"
+    exit 0
+  fi
+
+  # Set default values if not specified
+  remote=${remote:-"localhost"}
+  port=${port:-"22"}
+  user=${user:-"root"}
+
+  composed_cmd="ssh -p $port $user@$remote \"$command\""
+  cmd_manager HIGHLIGHT_CMD $composed_cmd
+}
+
+# @user User in the host machine
+# @ip Ip of the host machine
+# @src Origin of the file to be send
+# @dst Destination for sending the file
+function cp_host2remote()
+{
+  local src=$1
+  local dst=$2
+  local remote=$3
+  local port=$4
+  local user=$5
+
+  remote=${remote:-"localhost"}
+  port=${port:-"22"}
+  user=${user:-"root"}
+
+  src=${src:-"$kw_dir/to_deploy/*"}
+  dst=${dst:-"/root/kw_deploy"}
+
+  cmd_manager "rsync -e 'ssh -p $port' -La $src $user@$remote:$dst"
+}
+
 # This function prepares the directory ~/kw/ for receiving files to be sent for
 # a remote machine.
 function prepare_host_deploy_dir()
@@ -38,7 +87,8 @@ function prepare_remote_dir()
 
   cmd_remotely "$KW_DEPLOY_CMD" "$ip" "$port"
 
-  distro_info=$(cmd_remotely "cat /etc/*-release" "$ip" "$port")
+  # XXX: Gambi em decorrencia do bug em detect_distro
+  distro_info=$(cmd_remotely "cat /etc/*-release | grep -w ID | cut -d = -f 2" "$ip" "$port")
   distro=$(detect_distro "/" "$distro_info")
 
   if [[ $distro =~ "none" ]]; then

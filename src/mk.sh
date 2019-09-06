@@ -149,7 +149,7 @@ function kernel_install
         cp $template_mkinit $kw_dir/to_deploy/$name.preset
         sed -i "s/NAME/$name/g" $kw_dir/to_deploy/$name.preset
       fi
-
+      
       ip=$(get_from_colon $ret 1)
       port=$(get_from_colon $ret 2)
 
@@ -177,7 +177,15 @@ function kernel_install
 function kernel_deploy
 {
   local reboot=0
-  local name=${name:-"kw"}
+  local name="kw"
+
+  if ! is_kernel_root "$PWD"; then
+    complain "Execute this command in a kernel tree."
+    exit 125 # ECANCELED
+  fi
+
+  # Update name: release + alias
+  name=$(make kernelrelease)
 
   for arg do
     shift

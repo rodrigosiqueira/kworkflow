@@ -8,56 +8,6 @@ function get_from_colon()
   echo "$string" | cut -d : -f$position
 }
 
-# This function is responsible for executing a command in a remote machine.
-#
-# @command Command to be executed inside the remote machine
-# @user User in the host machine
-# @ip Ip of the host machine
-function cmd_remotely()
-{
-  local command=$1
-  local remote=$2
-  local port=$3
-  local user=$4
-  local composed_cmd=""
-
-  if [[ -z "$command" ]]; then
-    warning "No command specified"
-    exit 0
-  fi
-
-  # Set default values if not specified
-  remote=${remote:-"localhost"}
-  port=${port:-"22"}
-  user=${user:-"root"}
-
-  composed_cmd="ssh -p $port $user@$remote \"$command\""
-  cmd_manager HIGHLIGHT_CMD $composed_cmd
-}
-
-# @user User in the host machine
-# @ip Ip of the host machine
-# @src Origin of the file to be send
-# @dst Destination for sending the file
-function cp_host2remote()
-{
-  local src=$1
-  local dst=$2
-  local remote=$3
-  local port=$4
-  local user=$5
-
-  remote=${remote:-"localhost"}
-  port=${port:-"22"}
-  user=${user:-"root"}
-
-  src=${src:-"$kw_dir/to_deploy/*"}
-  dst=${dst:-"/root/kw_deploy"}
-
-  # TODO: EH MUITO FEIO A MANIPULACAO DE PORTA NO RSYNC, MAS TEM QUE SER FEITA
-  cmd_manager "rsync -e 'ssh -p $port' -La $src $user@$remote:$dst"
-}
-
 # This function executes any command and provides a mechanism to display the
 # command in the terminal. Additionally, there's a test mode which only
 # displays the commands, and it is useful for implementing unit tests.
@@ -254,6 +204,7 @@ function detect_distro()
   local etc_path=$(join_path $root_path /etc)
   local distro="none"
 
+  # XXX: Claramente esse codigo esta todo bugado. REVER!
   if [[ ! -z "$str_check" ]]; then
     distro=$str_check
   elif [[ -d $etc_path ]]; then
@@ -264,6 +215,8 @@ function detect_distro()
     echo "arch"
   elif [[ $distro =~ "debian" ]]; then
     echo "debian"
+  elif [[ $distro =~ "ubuntu" ]]; then
+    echo "ubuntu"
   else
     echo "none"
   fi
