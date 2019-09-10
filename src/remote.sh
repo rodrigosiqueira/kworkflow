@@ -19,7 +19,10 @@ function cmd_remotely()
   local remote=$2
   local port=$3
   local user=$4
+  local display_option=$5
   local composed_cmd=""
+
+  display_option=${display_option:-"HIGHLIGHT_CMD"}
 
   if [[ -z "$command" ]]; then
     warning "No command specified"
@@ -32,7 +35,7 @@ function cmd_remotely()
   user=${user:-"root"}
 
   composed_cmd="ssh -p $port $user@$remote \"$command\""
-  cmd_manager HIGHLIGHT_CMD $composed_cmd
+  cmd_manager $display_option $composed_cmd
 }
 
 # @user User in the host machine
@@ -55,6 +58,16 @@ function cp_host2remote()
   dst=${dst:-"/root/kw_deploy"}
 
   cmd_manager "rsync -e 'ssh -p $port' -La $src $user@$remote:$dst"
+}
+
+function which_distro()
+{
+  local ip=$1
+  local port=$2
+
+  cmd="cat /etc/os-release | grep -w ID | cut -d = -f 2"
+
+  cmd_remotely "$cmd" "$ip" "$port" "root" "SILENT"
 }
 
 # This function prepares the directory ~/kw/ for receiving files to be sent for
@@ -87,8 +100,7 @@ function prepare_remote_dir()
 
   cmd_remotely "$KW_DEPLOY_CMD" "$ip" "$port"
 
-  # XXX: Gambi em decorrencia do bug em detect_distro
-  distro_info=$(cmd_remotely "cat /etc/*-release | grep -w ID | cut -d = -f 2" "$ip" "$port")
+  distro_info=$(which_distro "$ip" "$port" "root")
   distro=$(detect_distro "/" "$distro_info")
 
   if [[ $distro =~ "none" ]]; then
