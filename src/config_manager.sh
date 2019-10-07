@@ -1,4 +1,6 @@
-. $src_script_path/kwio.sh --source-only
+. $src_script_path/commons.sh --source-only
+. $src_script_path/kwlib.sh --source-only
+# We include remote.sh on fetch_config . $src_script_path/remote.sh --source-only
 
 declare -r metadata_dir="metadata"
 declare -r configs_dir="configs"
@@ -176,6 +178,41 @@ function remove_config()
   fi
 }
 
+# TODO: Documentar
+function fetch_config()
+{
+  local ip=$1
+  local port=$2
+  local optimize=$3
+  local force=$4
+  local -r msg="This operation will override the current .config file"
+
+  # TODO: Alterar o basic_config_validations para ser util no fetch_config.
+  # Note que copiei e colei o trecho abaixo
+  # basic_config_validations "" $force "Fetch" $msg
+  if [[ $force != 1 ]]; then
+    warning $msg
+    if [[ $(ask_yN "Are you sure that you want to proceed?") =~ "0" ]]; then
+      complain "fetch operation aborted"
+      exit 0
+    fi
+  fi
+
+  . $src_script_path/remote.sh --source-only
+  distro_info=$(which_distro "$ip" "$port" "root")
+  distro=$(detect_distro "/" "$distro_info")
+
+  . "$plugins_path/config_fetch/$distro.sh"
+  get_config_from_remote $ip $port $optimize
+
+  # TODO: TEM QUE VERIFICAR ANTES DE USAR, SENAO PODE USAR O LSMOD LOCAL
+  if [[ "$optimize" == "1" ]]; then
+    say "Kw is optimizing your config file, be patient"
+    make olddefconfig
+    make localmodconfig LSMOD=REMOTE_LSMOD
+  fi
+}
+
 # This function handles the options available in 'configm'.
 #
 # @* This parameter expects a list of parameters, such as '-n', '-d', and '-f'.
@@ -187,8 +224,13 @@ function execute_config_manager()
   local name_config
   local description_config
   local force=0
+  local optimize=0
 
-  [[ "$@" =~ "-f" ]] && force=1
+  for arg do
+    shift
+    [[ "$arg" =~ ^-f$ ]] && force=1 && continue
+    set -- "$@" "$arg"
+  done
 
   case $1 in
     --save)
@@ -223,6 +265,39 @@ function execute_config_manager()
       fi
 
       remove_config $1 $force
+      ;;
+# kw configm --fetch
+# kw configm --fetch --optimize
+# kw configm --fetch IP:PORT
+# kw configm --fetch IP:PORT --optimize
+    --fetch)
+      shift # Remove '--fetch'
+
+      for arg do
+        shift
+        [[ "$arg" =~ ^(--optimize|-f) ]] && optimize=1 && continue
+        set -- "$@" "$arg"
+      done
+
+      if [[ ! -z "$@" ]]; then
+        input="$@"
+        # PARSER
+        ip=$(get_from_colon "$input" 1)
+        port=$(get_from_colon "$input" 2)
+        if [[ "$port" == "$ip" ]]; then
+          port="22"
+        fi
+      else
+        ip=${configurations[ssh_ip]}
+        port=${configurations[ssh_port]}
+      fi
+
+      fetch_config $ip $port $optimize $force
+      # TODO
+      # 1) Descobrir a distro
+      # 2) Pegar o .config no local certo
+      # 3) Se tiver otimizacao tmb pegar o lsmod
+      # 4) Salvar localmente
       ;;
     *)
       complain "Unknown option"
