@@ -129,6 +129,36 @@ function modules_install
   esac
 }
 
+function list_installed_kernels
+{
+  local flag="$1"
+  local ret
+
+  flag=${flag:-"SILENT"}
+  ret=$(parser_command "$@")
+
+  case "$?" in
+    1) # VM_TARGET
+      echo "VAMOS LISTAR KERNELS NA VM"
+    ;;
+    2) # LOCAL_TARGET
+      echo "LOCAL"
+    ;;
+    3) # REMOTE_TARGET
+      local cmd="bash $REMOTE_KW_DEPLOY/deploy.sh --list_kernels"
+      local remote=$(get_from_colon $ret 1)
+      local port=$(get_from_colon $ret 2)
+
+      say "Get information from remote"
+      prepare_remote_dir "$remote" "$port" "" "$flag"
+
+      cmd_remotely "$cmd" "$flag" "$remote" "$port"
+    ;;
+  esac
+
+  return 0
+}
+
 # This function behaves like a kernel installation manager. It handles some
 # parameters, and it also prepares to deploy the new kernel in the target
 # machine.
@@ -234,6 +264,7 @@ function kernel_deploy
   local reboot=0
   local name="kw"
   local modules=0
+  local list=0
 
   if ! is_kernel_root "$PWD"; then
     complain "Execute this command in a kernel tree."
@@ -248,8 +279,14 @@ function kernel_deploy
     [[ "$arg" =~ ^(--reboot|-r) ]] && reboot=1 && continue
     [[ "$arg" =~ ^(--name|-n)= ]] && name=$(echo $arg | cut -d = -f2) && continue
     [[ "$arg" =~ ^(--modules|-m) ]] && modules=1 && continue
+    [[ "$arg" =~ ^(--list|-l) ]] && list=1 && continue
     set -- "$@" "$arg"
   done
+
+  if [[ "$list" == 1 ]]; then
+    list_installed_kernels "$@"
+    return "$?"
+  fi
 
   # NOTE: If we deploy a new kernel image that does not match with the modules,
   # we can break the boot. For security reason, every time we want to deploy a
