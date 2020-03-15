@@ -16,44 +16,7 @@ cd "$HOME/kw_deploy"
 
 # Load specific distro script
 . distro_deploy.sh --source-only
-
-function list_installed_kernels()
-{
-  local option="$@"
-  local output
-  local ret
-  local available_kernels=()
-
-  # TODO: VERIFICAR A PERMISSAO
-  # TODO: para listar, eh preciso bater o que tem no grub com o que tem no /boot
-  output=$(awk -F\' '/menuentry / {print $2}' /boot/grub/grub.cfg)
-  output=$(echo "$output" | grep recovery -v | grep with |  awk -F" "  '{print $NF}')
-
-  while read kernel
-  do
-    if [[ -f "/boot/vmlinuz-$kernel" ]]; then
-       available_kernels+=( "$kernel" )
-    fi
-  done <<< "$output"
-
-  if [[ -z "$option" ]]; then
-    printf '%s\n' "${available_kernels[@]}"
-    exit
-  fi
-
-  case "$option" in
-    --single-line)
-      echo -n ${available_kernels[0]}
-      available_kernels=("${available_kernels[@]:1}")
-      printf ',%s' "${available_kernels[@]}"
-      echo ""
-      ;;
-    *)
-      echo "Invalid option "$option""
-      exit 22 # EINVAL
-      ;;
-  esac
-}
+. kernel_management_support.sh --source-only
 
 # ATTENTION:
 # This function follows the cmd_manager signature (src/kwlib.sh) because we
@@ -89,6 +52,18 @@ function cmd_manager()
   esac
 
   eval "$@"
+}
+
+function ask_yN()
+{
+  local message=$@
+
+  read -r -p "$message [y/N] " response
+  if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+    echo "1"
+  else
+    echo "0"
+  fi
 }
 
 case "$1" in

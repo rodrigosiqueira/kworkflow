@@ -139,10 +139,25 @@ function list_installed_kernels
 
   case "$?" in
     1) # VM_TARGET
-      echo "VAMOS LISTAR KERNELS NA VM"
+      local distro=$(detect_distro "/")
+
+      vm_mount
+
+      if [ "$?" != 0 ] ; then
+        complain "Did you check if your VM is running?"
+        return 125 # ECANCELED
+      fi
+
+      . "$plugins_path/kernel_install/kernel_management_support.sh" --source-only
+      list_installed_kernels "" "${configurations[mount_point]}"
+
+      vm_umount
     ;;
     2) # LOCAL_TARGET
-      echo "LOCAL"
+      local distro=$(detect_distro "/")
+      # Local Deploy
+      . "$plugins_path/kernel_install/kernel_management_support.sh" --source-only
+      list_installed_kernels
     ;;
     3) # REMOTE_TARGET
       local cmd="bash $REMOTE_KW_DEPLOY/deploy.sh --list_kernels"
