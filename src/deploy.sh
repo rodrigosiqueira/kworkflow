@@ -354,7 +354,7 @@ function check_setup_status()
       local remote="${remote_parameters['REMOTE_IP']}"
       local port="${remote_parameters['REMOTE_PORT']}"
 
-      cmd_remotely "$cmd" "$flag" "$remote" "$port"
+      cmd_remotely "$cmd" "SUCCESS" "$remote" "$port"
       ret="$?"
       ;;
   esac

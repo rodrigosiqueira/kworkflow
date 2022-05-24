@@ -38,6 +38,66 @@ function cmd_manager()
   eval "$@"
 }
 
+function detect_filesystem_type()
+{
+  local file_system
+
+  file_system=$(findmnt --first-only --noheadings --output FSTYPE /)
+
+  printf '%s' "$file_system"
+}
+
+function is_partition_writable()
+{
+  local cmd
+  local file_system_type
+
+  file_system_type=$(detect_filesystem_type)
+  case "$file_system_type" in
+    ext4)
+      # XXX: I got this from SteamOS scripts, but I'm not sure if it is a good
+      # idea. To avoid regressions to other OSes, I'm just adding the 'true'
+      # command.
+      local rootdev_path='/dev/disk/by-partsets/self/rootfs'
+      if [[ -f "$rootdev_path" ]]; then
+        cmd="tune2fs -l '$rootdev_path' | grep -q '^Filesystem features: .*read-only.*$'"
+      else
+        cmd='true'
+      fi
+      ;;
+    btrfs)
+      cmd='btrfs property get / ro | grep "ro=false" --silent'
+      ;;
+    *)
+      return 95 # EOPNOTSUPP
+      ;;
+  esac
+
+  cmd_manager "$flag" "$cmd"
+  return "$?"
+}
+
+function make_root_partition_writable()
+{
+  local flag="$flag"
+  local file_system_type
+
+  is_partition_writable
+  if [[ "$?" != 0 ]]; then
+    file_system_type=$(detect_filesystem_type)
+    case "$file_system_type" in
+      ext4)
+        cmd_manager "$flag" "tune2fs -O ^read-only $ROOTDEV_PATH"
+        cmd_manager "$flag" 'mount -o remount,rw /'
+      ;;
+      btrfs)
+        cmd_manager "$flag" 'mount -o remount,rw /'
+        cmd_manager "$flag" "btrfs property set / ro false"
+      ;;
+    esac
+  fi
+}
+
 function collect_deploy_info()
 {
   local flag="$1"
@@ -78,6 +138,10 @@ function distro_deploy_setup()
   local package_list
   local install_package_cmd
 
+  # Make sure that / is writable
+  make_root_partition_writable "$flag"
+
+  # Install required packages
   printf -v package_list '%s ' "${required_packages[@]}"
 
   install_package_cmd="$package_manager_cmd $package_list"
