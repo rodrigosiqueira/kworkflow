@@ -14,7 +14,7 @@ declare -ga patches_from_mailing_list
 declare -ga bookmarked_series
 
 declare -gA screen_sequence=(
-  ['SHOW_SCREEN']='register'
+  ['SHOW_SCREEN']='mailing_lists'
   ['SHOW_SCREEN_PARAMETER']=''
   ['RETURNING']=''
 )
@@ -41,9 +41,8 @@ upstream_patches_ui_main()
   # Main loop
   while true; do
     case "${screen_sequence['SHOW_SCREEN']}" in
-      'register')
-        # First time here? Let's register some public mailing list
-        register_mailing_list 'SILENT'
+      'mailing_lists')
+        show_mailing_lists_screen
         ret="$?"
         ;;
       'dashboard')
@@ -202,11 +201,18 @@ function show_bookmarked_series_details()
 # Screen that shows all types of settings available.
 function show_settings_screen()
 {
+  local lore_config_path="${PWD}/.kw/lore.config"
   local -a menu_list_string_array
   local message_box
+  local new_value
+  local output
   local ret
 
-  menu_list_string_array=('Register/Unregister Mailing Lists')
+  if [[ ! -f "${lore_config_path}" ]]; then
+    lore_config_path="${KW_ETC_DIR}/lore.config"
+  fi
+
+  menu_list_string_array=('Register/Unregister Mailing Lists' 'Save Patches To')
   create_menu_options 'Settings' '' 'menu_list_string_array' 1
   ret="$?"
 
@@ -214,7 +220,35 @@ function show_settings_screen()
     0) # OK
       case "$menu_return_string" in
         1) # Register/Unregister Mailing Lists
-          screen_sequence['SHOW_SCREEN']='register'
+          screen_sequence['SHOW_SCREEN']='mailing_lists'
+          ;;
+        2) # Save Patches To
+          create_directory_selection_screen "${lore_config['save_patches_to']}" 'Select directory where patches will be downloaded'
+          case "$?" in
+            0) # OK
+              new_value=$(printf '%s' "$menu_return_string" | sed 's/\/$//')
+              if [[ ! -d "$new_value" ]]; then
+                create_message_box 'Error' "${new_value}: No such directory."
+              else
+                output=$(save_new_lore_config 'save_patches_to' "$new_value" "$lore_config_path")
+                if [[ "$?" != 0 ]]; then
+                  create_message_box 'Error' "Failed to save new value ${new_value} in ${lore_config_path}:"$'\n'"$output"
+                fi
+                # As we altered the settings, we need to reload lore.config
+                load_lore_config
+              fi
+              ;;
+            1) # Cancel
+              ;;
+            2) # Help
+              create_help_screen 'directory_selection'
+              if [[ "$?" != 0 ]]; then
+                create_message_box 'Error' 'Cannot create help screen'
+              fi
+              ;;
+          esac
+          # Just to be safe
+          screen_sequence['SHOW_SCREEN']='settings'
           ;;
       esac
       ;;
@@ -320,19 +354,19 @@ function show_series_details()
         case "$option" in
           'Bookmark')
             create_loading_screen_notification 'Bookmarking patch(es)'$'\n'"- ${series['patch_title']}"
-            output=$(download_series "${series['patch_url']}" "${lore_config['download_to']}")
+            output=$(download_series "${series['patch_url']}" "${lore_config['save_patches_to']}")
             if [[ "$?" != 0 ]]; then
               create_message_box 'Error' 'Could not download patch(es):'$'\n'"- ${series['patch_title']}"$'\n'"[error message] ${output}"
               continue
             fi
-            add_series_to_bookmark "${raw_series}" "${lore_config['download_to']}"
+            add_series_to_bookmark "${raw_series}" "${lore_config['save_patches_to']}"
             if [[ "$?" != 0 ]]; then
               create_message_box 'Error' 'Could not bookmark patch(es)'$'\n'"- ${series['patch_title']}"
             fi
             ;;
           'Download')
             create_loading_screen_notification 'Downloading patch(es)'$'\n'"- ${series['patch_title']}"
-            output=$(download_series "${series['patch_url']}" "${lore_config['download_to']}")
+            output=$(download_series "${series['patch_url']}" "${lore_config['save_patches_to']}")
             if [[ "$?" != 0 ]]; then
               create_message_box 'Error' 'Could not download patch(es):'$'\n'"- ${series['patch_title']}"$'\n'"[error message] ${output}"
             fi
@@ -400,14 +434,14 @@ function list_patches()
   esac
 }
 
-# Screen used to register to a new mailing list
-function register_mailing_list()
+# Screen used to manage the mailing lists
+function show_mailing_lists_screen()
 {
-  local flag="$1"
   local message_box
   local new_list
   local -a menu_list_string_array
   local -a check_statuses=()
+  local index=0
   local lore_config_path="${PWD}/.kw/lore.config"
   local ret
 
@@ -415,16 +449,31 @@ function register_mailing_list()
     lore_config_path="${KW_ETC_DIR}/lore.config"
   fi
 
-  retrieve_available_mailing_lists "$flag"
+  create_loading_screen_notification 'Retrieving available mailing lists from lore.kernel.org'
+  retrieve_available_mailing_lists
 
   # shellcheck disable=SC2207
   IFS=$'\n' menu_list_string_array=($(sort <<< "${!available_lore_mailing_lists[*]}"))
   unset IFS
 
-  message_box="It looks like that you don't have any lore list registered; please"
-  message_box+=" select one or more of the below list:"
+  # Put check marks on mailing lists already registered
+  for list in "${menu_list_string_array[@]}"; do
+    check_statuses["$index"]=0
+    # substring of others (e.g. 'yocto' and 'yocto-docs') may lead to false positives.
+    IFS=',' read -r -a registered_lists <<< "${lore_config['lists']}"
+    for registered_list in "${registered_lists[@]}"; do
+      [[ "$list" == "$registered_list" ]] && check_statuses["$index"]=1
+    done
+    ((index++))
+  done
 
-  create_simple_checklist 'Lore list' "$message_box" 'menu_list_string_array' 'check_statuses'
+  if [[ -z "${lore_config['lists']}" ]]; then
+    message_box="It looks like that you don't have any lore list registered."
+    message_box+=" Please, select one or more of the list below:"
+  fi
+
+  create_simple_checklist 'Register/Unresgister Mailing Lists' "$message_box" 'menu_list_string_array' \
+    'check_statuses' 1
   ret="$?"
 
   new_list=$(printf '%s' "$menu_return_string" | tr -s '[:blank:]' ',')
@@ -432,7 +481,7 @@ function register_mailing_list()
   case "$ret" in
     0) # OK
       if [[ -n "$new_list" ]]; then
-        screen_sequence['SHOW_SCREEN']='dashboard'
+        screen_sequence['SHOW_SCREEN']='settings'
         lore_config['lists']="${new_list}"
         IFS=',' read -r -a registered_lists <<< "$new_list"
         sed -i -r "s<(lists=).*<\1${new_list}<" "$lore_config_path"
@@ -440,6 +489,9 @@ function register_mailing_list()
       ;;
     1) # Exit
       handle_exit "$ret"
+      ;;
+    3) # Return
+      screen_sequence['SHOW_SCREEN']='settings'
       ;;
   esac
 }

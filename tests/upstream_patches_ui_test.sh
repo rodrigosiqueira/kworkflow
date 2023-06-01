@@ -182,7 +182,7 @@ function test_show_settings_screen()
   }
 
   show_settings_screen
-  assert_equals_helper 'Should set next screen to "register"' "$LINENO" 'register' "${screen_sequence['SHOW_SCREEN']}"
+  assert_equals_helper 'Should set next screen to "mailing_lists"' "$LINENO" 'mailing_lists' "${screen_sequence['SHOW_SCREEN']}"
 }
 
 invoke_shunit
