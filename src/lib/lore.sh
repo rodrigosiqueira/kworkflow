@@ -732,3 +732,40 @@ function save_new_lore_config()
 
   sed --in-place --regexp-extended "s<(${setting}=).*<\1${new_value}<" "$lore_config_path"
 }
+
+# Based on a Linux kernel tree, this function gets the tree local branches and
+# metadata. The data is transmitted using an associative array reference passed
+# as argument. Each key-value pair of the array is like:
+#  KEY: `<name_of_branch>` , VALUE: `<commit_SHA> <commit_subject>`
+#
+# @kernel_tree_path: Path to a Linux kernel source tree
+# @_branches: Associative array reference where data will be trasmitted
+# @flag Flag to control function output
+#
+# Return:
+# Returns data regarding the tree branches through the array reference passed as
+# argument.
+function get_kernel_tree_branches()
+{
+  local kernel_tree_path="$1"
+  local -n _branches="$2"
+  local flag="$3"
+  local output
+  local branch
+  local branch_metadata
+
+  flag=${flag:-'SILENT'}
+
+  output=$(cmd_manager "$flag" "git -C ${kernel_tree_path} branch --verbose")
+  # Clean output by removing asterisks and withespaces in the beginning of each line
+  output=$(printf '%s' "$output" | sed 's/\*//g')
+  output=$(printf '%s' "$output" | sed 's/^[ \t]*//g')
+
+  while IFS=$'\n' read -r line; do
+    # Format of line: '<branch_name><whitespaces><commit_SHA> <commit_subject>'
+    branch=$(printf '%s' "$line" | cut --delimiter=' ' -f1)
+    # Below we are 1) cutting the branch name; 2) removing any whitespace in the beginning 3) cutting the commit SHA
+    branch_metadata=$(printf '%s' "$line" | cut --delimiter=' ' -f2- | sed 's/^[ \t]*//' | cut --delimiter=' ' -f2-)
+    _branches["$branch"]="$branch_metadata"
+  done <<< "$output"
+}

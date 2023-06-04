@@ -421,4 +421,22 @@ function test_save_new_lore_config()
   assert_equals_helper 'Wrong lore.config contents' "$LINENO" "$expected" "$output"
 }
 
+function test_get_kernel_tree_branches()
+{
+  declare -A branches
+
+  # Mock for command 'git branch --verbose'
+  # shellcheck disable=SC2317
+  function git()
+  {
+    printf ' branch1  \t cafebabe commit_subject1\n  branch2 \t\t deadbeef commit_subject2\n\t\t branch3   c00010ff commit_subject3'
+  }
+  export -f git
+
+  get_kernel_tree_branches "$kernel_tree_path" 'branches'
+  assert_equals_helper 'Wrong value for branch1 key' "$LINENO" 'commit_subject1' "${branches['branch1']}"
+  assert_equals_helper 'Wrong value for branch2 key' "$LINENO" 'commit_subject2' "${branches['branch2']}"
+  assert_equals_helper 'Wrong value for branch3 key' "$LINENO" 'commit_subject3' "${branches['branch3']}"
+}
+
 invoke_shunit
